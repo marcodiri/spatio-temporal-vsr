@@ -167,6 +167,10 @@ class FRNet(BaseGenerator):
         self.fnet = FNet(in_nc)
         self.srnet = SRNet(in_nc, out_nc, nf, nb, self.upsample_func, scale)
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
     def generate_dummy_input(self, lr_size):
         c, lr_h, lr_w = lr_size
         s = self.scale
@@ -266,11 +270,10 @@ class FRNet(BaseGenerator):
 
         return ret_dict
 
-    def infer_sequence(self, lr_data, device):
+    def infer_sequence(self, lr_data):
         """
         Parameters:
             :param lr_data: torch.FloatTensor in shape tchw
-            :param device: torch.device
 
             :return hr_seq: uint8 np.ndarray in shape tchw
         """
@@ -281,18 +284,17 @@ class FRNet(BaseGenerator):
 
         # forward
         hr_seq = []
-        lr_prev = torch.zeros(1, c, h, w, dtype=torch.float32).to(device)
-        hr_prev = torch.zeros(1, c, s * h, s * w, dtype=torch.float32).to(device)
+        lr_prev = torch.zeros(1, c, h, w, dtype=torch.float32, device=self.device)
+        hr_prev = torch.zeros(
+            1, c, s * h, s * w, dtype=torch.float32, device=self.device
+        )
 
         for i in range(tot_frm):
-            with torch.no_grad():
-                self.eval()
+            lr_curr = lr_data[i : i + 1, ...]
+            hr_curr = self.forward_single(lr_curr, lr_prev, hr_prev)
+            lr_prev, hr_prev = lr_curr, hr_curr
 
-                lr_curr = lr_data[i : i + 1, ...].to(device)
-                hr_curr = self.forward_single(lr_curr, lr_prev, hr_prev)
-                lr_prev, hr_prev = lr_curr, hr_curr
-
-                hr_frm = hr_curr.squeeze(0).cpu().numpy()  # chw|rgb|uint8
+            hr_frm = hr_curr.squeeze(0).cpu().numpy()  # chw|rgb|uint8
 
             hr_seq.append(float32_to_uint8(hr_frm))
 
@@ -519,19 +521,3 @@ class SpatialDiscriminator(BaseDiscriminator):
         ret_dict = {}
 
         return pred, ret_dict
-
-
-if __name__ == "__main__":
-    from torchsummary import summary
-
-    img_size = (960, 640)
-    cpu_cuda = "cuda"
-
-    device = torch.device(cpu_cuda)
-
-    model = ResidualBlock()
-    model.eval()
-    model.to(device)
-
-    print(model)
-    summary(model, (64, *img_size), batch_size=1, device=cpu_cuda)
