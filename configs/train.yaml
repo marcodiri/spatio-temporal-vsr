@@ -9,7 +9,7 @@ trainer:
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
-      save_dir: .
+      save_dir: ./lightning_logs
       offline: false
       project: vsr
       log_model: False
@@ -38,6 +38,8 @@ model:
     init_args:
       spatial_size: 128
       scale: 2
+  gen_lr: 5e-5
+  dis_lr: 5e-5
   losses:
     pixel_crit:
       type: CB
@@ -66,7 +68,7 @@ data:
   extension: png
   path_filter: '1088'
   patch_size: 64
-  tempo_extent: 3
+  tempo_extent: 5
   train_pct: 0.8
   dataset_upscale_factor: 2
   batch_size: 8

@@ -18,6 +18,8 @@ class VSRGAN(L.LightningModule):
         *,
         crop_border_ratio: float = 0.75,
         losses: Dict,
+        gen_lr: float = 5e-5,
+        dis_lr: float = 5e-5,
     ):
         super(VSRGAN, self).__init__()
         self.save_hyperparameters(ignore=["generator", "discriminator"])
@@ -45,8 +47,8 @@ class VSRGAN(L.LightningModule):
         self.automatic_optimization = False
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        optim_G = torch.optim.Adam(params=self.G.parameters(), lr=5e-5)
-        optim_D = torch.optim.Adam(params=self.D.parameters(), lr=5e-5)
+        optim_G = torch.optim.Adam(params=self.G.parameters(), lr=self.hparams.gen_lr)
+        optim_D = torch.optim.Adam(params=self.D.parameters(), lr=self.hparams.dis_lr)
 
         return optim_G, optim_D
 
