@@ -5,8 +5,8 @@ import torch
 from lightning.pytorch.utilities.types import STEP_OUTPUT, OptimizerLRScheduler
 
 from models.networks.base_nets import BaseDiscriminator, BaseGenerator
+from models.networks.vgg_nets import VGGFeatureExtractor
 from optim import define_criterion
-from optim.losses import VanillaGANLoss
 from utils import net_utils
 
 
@@ -34,6 +34,12 @@ class VSRGAN(L.LightningModule):
 
         # feature criterion
         self.feat_crit, self.feat_w = define_criterion(losses.get("feature_crit"))
+        if losses.get("feature_crit")["type"] == "CosineSimilarity":
+            self.feat_net = VGGFeatureExtractor(
+                losses["feature_crit"].get("feature_layers", [8, 17, 26, 35])
+            )
+        else:
+            self.feat_net = None
 
         # flow & mask criterion
         self.flow_crit, self.flow_w = define_criterion(losses.get("flow_crit"))
@@ -100,10 +106,10 @@ class VSRGAN(L.LightningModule):
         net_D_input_dict.update(net_G_output_dict)
 
         # forward real sequence (gt)
-        real_pred, net_D_oputput_dict = self.D(hr_true, net_D_input_dict)
+        real_pred, net_D_output_dict = self.D(hr_true, net_D_input_dict)
 
         # reuse internal data (e.g., lr optical flow) to reduce computations
-        net_D_input_dict.update(net_D_oputput_dict)
+        net_D_input_dict.update(net_D_output_dict)
 
         # forward fake sequence (hr)
         fake_pred, _ = self.D(hr_fake.detach(), net_D_input_dict)
@@ -152,7 +158,15 @@ class VSRGAN(L.LightningModule):
             hr_merge = hr_fake.view(-1, c, gt_h, gt_w)
             gt_merge = hr_true.view(-1, c, gt_h, gt_w)
 
-            loss_feat_G = self.feat_crit(hr_merge, gt_merge.detach()).mean()
+            if self.feat_net is None:
+                loss_feat_G = self.feat_crit(hr_merge, gt_merge.detach()).mean()
+            else:
+                hr_feat_lst = self.feat_net(hr_merge)
+                gt_feat_lst = self.feat_net(gt_merge)
+                loss_feat_G = 0
+                for hr_feat, gt_feat in zip(hr_feat_lst, gt_feat_lst):
+                    loss_feat_G += self.feat_crit(hr_feat, gt_feat.detach())
+
             loss_G += self.feat_w * loss_feat_G
             to_log_prog["G_lpip_loss"] = loss_feat_G
 
@@ -181,3 +195,21 @@ class VSRGAN(L.LightningModule):
 
         self.log_dict(to_log_prog, prog_bar=True)
         self.log_dict(to_log, prog_bar=False)
+
+    def validation_step(self, batch, batch_idx) -> STEP_OUTPUT:
+        hr_true, lr_data = batch
+
+        hr_fake = self.G(lr_data)["hr_data"]
+
+        # ssim_val = self.ssim(y_fake, y_true).mean()
+        # lpips_val = self.lpips_alex(y_fake, y_true).mean()
+        # self.ssim_validation.append(float(ssim_val))
+        # self.lpips_validation.append(float(lpips_val))
+
+        lr_data, hr_true, hr_fake = (
+            lr_data[:, 0, :, :],
+            hr_true[:, 0, :, :],
+            hr_fake[:, 0, :, :],
+        )
+
+        return lr_data, hr_true, hr_fake
