@@ -41,10 +41,12 @@ model:
       scale: 2
   gen_lr: 5e-5
   dis_lr: 5e-5
+  dis_update_policy: adaptive
+  dis_update_threshold: 0.4
   losses:
     pixel_crit:
       type: CB
-      weight: 0.2 # 1
+      weight: 1
       reduction: mean
     warping_crit:
       type: CB
@@ -57,7 +59,7 @@ model:
       feature_layers: [8, 17, 26, 35]
     # feature_crit:
     #   type: LPIPS
-    #   weight: 0.8 # 0.2
+    #   weight: 0.2
     #   net: vgg
     pingpong_crit:
       type: CB
@@ -65,14 +67,12 @@ model:
       reduction: mean
     gan_crit:
       type: GAN
-      weight: 0.1 # 0.01
+      weight: 0.01
       reduction: mean
 
 data:
-  # hr_path: /home/DATASETS/BVI_DVC/frames_HQ
-  # lr_path: /home/DATASETS/BVI_DVC/frames/frames_CRF_27
-  hr_path: /home/mdirienzo/fast-sr-unet-mod/ds/frames_HQ
-  lr_path: /home/mdirienzo/fast-sr-unet-mod/ds/frames/frames_CRF_22
+  hr_path: /home/DATASETS/BVI_DVC/frames_HQ
+  lr_path: /home/DATASETS/BVI_DVC/frames/frames_CRF_30
   extension: png
   path_filter: '1088'
   patch_size: 64
