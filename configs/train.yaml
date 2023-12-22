@@ -14,7 +14,7 @@ trainer:
       project: vsr
       log_model: False
       prefix: ''
-      group: ''
+      group: '4x32'
   callbacks: ImageLog
   fast_dev_run: false
   max_epochs: 100
@@ -33,12 +33,12 @@ model:
   generator:
     class_path: FRNet
     init_args:
-      scale: 2
+      scale: &UPSCALE_FACTOR 4
   discriminator:
     class_path: SpatioTemporalDiscriminator
     init_args:
       spatial_size: 128  # scale x data.patch_size
-      scale: 2
+      scale: *UPSCALE_FACTOR
   gen_lr: 5e-5
   dis_lr: 5e-5
   dis_update_policy: adaptive
@@ -52,15 +52,15 @@ model:
       type: CB
       weight: 1
       reduction: mean
-    feature_crit:
-      type: CosineSimilarity
-      weight: 0.2
-      reduction: mean
-      feature_layers: [8, 17, 26, 35]
     # feature_crit:
-    #   type: LPIPS
+    #   type: CosineSimilarity
     #   weight: 0.2
-    #   net: vgg
+    #   reduction: mean
+    #   feature_layers: [8, 17, 26, 35]
+    feature_crit:
+      type: LPIPS
+      weight: 0.2
+      net: vgg
     pingpong_crit:
       type: CB
       weight: 0.5
@@ -72,11 +72,12 @@ model:
 
 data:
   hr_path: /home/DATASETS/BVI_DVC/frames_HQ
-  lr_path: /home/DATASETS/BVI_DVC/frames/frames_CRF_30
+  lr_path: /home/DATASETS/BVI_DVC/frames/frames_CRF_22
   extension: png
-  path_filter: '1088'
-  patch_size: 64
+  hr_path_filter: '1088'
+  lr_path_filter: '544'
+  patch_size: 32
   tempo_extent: 10
   train_pct: 0.8
-  dataset_upscale_factor: 2
-  batch_size: 5
+  dataset_upscale_factor: *UPSCALE_FACTOR
+  batch_size: 4
