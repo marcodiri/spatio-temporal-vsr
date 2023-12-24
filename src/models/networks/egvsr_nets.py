@@ -289,16 +289,17 @@ class FRNet(BaseGenerator):
             1, c, s * h, s * w, dtype=torch.float32, device=self.device
         )
 
-        for i in range(tot_frm):
-            lr_curr = lr_data[i : i + 1, ...]
-            hr_curr = self.forward_single(lr_curr, lr_prev, hr_prev)
-            lr_prev, hr_prev = lr_curr, hr_curr
+        with torch.no_grad():
+            for i in range(tot_frm):
+                lr_curr = lr_data[i : i + 1, ...]
+                hr_curr = self.forward_single(lr_curr, lr_prev, hr_prev)
+                lr_prev, hr_prev = lr_curr, hr_curr
 
-            hr_frm = hr_curr.squeeze(0).cpu().numpy()  # chw|rgb|uint8
+                hr_frm = hr_curr.squeeze(0).cpu()  # chw|rgb|uint8
 
-            hr_seq.append(float32_to_uint8(hr_frm))
+                hr_seq.append(hr_frm)
 
-        return np.stack(hr_seq).transpose(0, 2, 3, 1)  # thwc
+        return torch.stack(hr_seq)
 
 
 # ------------------ discriminator modules ------------------ #
