@@ -41,6 +41,7 @@ class ImageLog(Callback):
                             ),
                             nrow=outputs[1].shape[0],
                             normalize=True,
+                            scale_each=True,
                         ),
                     ],
                     caption=["lq", "hq vs fake vs bicubic"],

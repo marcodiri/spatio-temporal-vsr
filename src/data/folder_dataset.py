@@ -20,7 +20,8 @@ class FolderDataset(Dataset):
         *,
         patch_size,
         tempo_extent=10,
-        path_filter="",
+        hr_path_filter="",
+        lr_path_filter="",
         dataset_upscale_factor=2,
         rescale_factor=None,
         **kwargs,
@@ -43,8 +44,10 @@ class FolderDataset(Dataset):
                 randomly extracted from the datasets.
             tempo_extent (int, default=10):
                 frames window of a single dataset element.
-            path_filter (str):
-                additional string that must be present in the path.
+            hr_path_filter (str):
+                additional string to filter subfolders in the hr_path.
+            lr_path_filter (str):
+                additional string to filter subfolders in the lr_path.
             dataset_upscale_factor (int, default=2):
                 resolution relationship between LQ and HQ samples. Must be known in advance: in our experiments,
                 we encoded the clips and halved their resolution, thus in our case upscale_factor is 2.
@@ -59,21 +62,22 @@ class FolderDataset(Dataset):
         self.extension = extension
         self.patch_size = patch_size
         self.tempo_extent = tempo_extent
-        self.path_filter = path_filter
+        self.hr_path_filter = hr_path_filter
+        self.lr_path_filter = lr_path_filter
         self.has_lowres = lr_path != ""
         self.upscale_factor = dataset_upscale_factor
         self.rf = rescale_factor
 
         self.hr_keys = sorted(
             filter(
-                lambda p: str(path_filter) in str(p),
+                lambda p: str(hr_path_filter) in str(p),
                 get_pics_in_subfolder(hr_path, ext=extension),
             )
         )
         if self.has_lowres:
             self.lr_keys = sorted(
                 filter(
-                    lambda p: str(path_filter) in str(p),
+                    lambda p: str(lr_path_filter) in str(p),
                     get_pics_in_subfolder(lr_path, ext=extension),
                 )
             )
@@ -92,23 +96,27 @@ class FolderDataset(Dataset):
         hr_key = self.hr_keys[item]
 
         tot_frm = len(os.listdir(hr_key.parent))
-        seq, (hr_w, hr_h), cur_frm = parse_frame_title(hr_key.name)
+        seq_hr, (hr_w, hr_h), cur_frm = parse_frame_title(hr_key.name)
 
         hr_frms, lr_frms = [], []
 
         # read frames
         for i in range(cur_frm, cur_frm + self.tempo_extent):
             if i < tot_frm:
-                frm_key = "{}_{:03d}.{}".format(hr_key.parts[-2], i, self.extension)
+                frm_n = i
             else:
                 # reflect temporal paddding, e.g., (0,1,2) -> (0,1,2,1,0)
-                frm_key = "{}_{:03d}.{}".format(
-                    hr_key.parts[-2], 2 * tot_frm - i, self.extension
-                )
-            hr_frms.append(utils.transform(load_img(f"{self.hr_path}/{seq}/{frm_key}")))
+                frm_n = 2 * tot_frm - i
+            frm_key = "{}_{:03d}.{}".format(seq_hr, frm_n, self.extension)
+            hr_frms.append(
+                utils.transform(load_img(f"{self.hr_path}/{seq_hr}/{frm_key}"))
+            )
             if self.has_lowres:
+                lr_key = self.hr_lr_keys[item][1]
+                seq_lr, (_, _), _ = parse_frame_title(lr_key.name)
+                frm_key = "{}_{:03d}.{}".format(seq_lr, frm_n, self.extension)
                 lr_frms.append(
-                    utils.transform(load_img(f"{self.lr_path}/{seq}/{frm_key}"))
+                    utils.transform(load_img(f"{self.lr_path}/{seq_lr}/{frm_key}"))
                 )
 
         hr_frms = torch.stack(hr_frms)  # t c h w

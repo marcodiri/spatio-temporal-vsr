@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Literal
 
 import lightning as L
 import torch
@@ -20,6 +20,8 @@ class VSRGAN(L.LightningModule):
         losses: Dict,
         gen_lr: float = 5e-5,
         dis_lr: float = 5e-5,
+        dis_update_policy: Literal["always", "adaptive"] = "always",
+        dis_update_threshold: float = 0.4,
     ):
         super(VSRGAN, self).__init__()
         self.save_hyperparameters(ignore=["generator", "discriminator"])
@@ -49,6 +51,8 @@ class VSRGAN(L.LightningModule):
 
         # gan criterion
         self.gan_crit, self.gan_w = define_criterion(losses.get("gan_crit"))
+
+        self.D_upd_cnt = 0
 
         self.automatic_optimization = False
 
@@ -118,16 +122,37 @@ class VSRGAN(L.LightningModule):
         to_log, to_log_prog = {}, {}
         real_pred_D, fake_pred_D = real_pred[0], fake_pred[0]
 
-        loss_real_D = self.gan_crit(real_pred_D, True)
-        loss_fake_D = self.gan_crit(fake_pred_D, False)
-        loss_D = loss_real_D + loss_fake_D
-        to_log["D_real_loss"] = loss_real_D
-        to_log["D_fake_loss"] = loss_fake_D
-        to_log_prog["D_loss"] = loss_D
+        # select D update policy
+        update_policy = self.hparams.dis_update_policy
+        if update_policy == "adaptive":
+            # update D adaptively
+            logged_real_pred_D = torch.log(torch.sigmoid(real_pred_D) + 1e-8)
+            logged_fake_pred_D = torch.log(torch.sigmoid(fake_pred_D) + 1e-8)
 
-        # update D
-        self.manual_backward(loss_D)
-        optim_D.step()
+            distance = logged_real_pred_D.mean() - logged_fake_pred_D.mean()
+
+            threshold = self.hparams.dis_update_threshold
+            upd_D = distance.item() < threshold
+            to_log["D_real_fake_distance"] = distance
+        else:
+            upd_D = True
+
+        if upd_D:
+            self.D_upd_cnt += 1
+            loss_real_D = self.gan_crit(real_pred_D, True)
+            loss_fake_D = self.gan_crit(fake_pred_D, False)
+            loss_D = loss_real_D + loss_fake_D
+
+            # update D
+            self.manual_backward(loss_D)
+            optim_D.step()
+            to_log["D_real_loss"] = loss_real_D
+            to_log["D_fake_loss"] = loss_fake_D
+            to_log["D_updates_count"] = self.D_upd_cnt
+        else:
+            loss_D = torch.zeros(1)
+
+        to_log_prog["D_loss"] = loss_D
 
         # ------------ optimize G ------------ #
         for param in self.D.parameters():
