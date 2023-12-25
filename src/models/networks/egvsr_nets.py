@@ -149,6 +149,8 @@ class SRNet(nn.Module):
         out = self.conv_out(out)
         # out += self.upsample_func(lr_curr)
 
+        out = F.tanh(out)
+
         return out
 
 

@@ -31,6 +31,14 @@ class VSRGAN(L.LightningModule):
         # pixel criterion
         self.pix_crit, self.pix_w = define_criterion(losses.get("pixel_crit"))
 
+        # edge criterion
+        self.edge_crit, self.edge_w = define_criterion(losses.get("edge_crit"))
+        if self.edge_crit is not None:
+            self.edge_net = net_utils.CannyDetector(
+                losses["edge_crit"].get("filter_size", 3),
+                losses["edge_crit"].get("std", 3),
+            )
+
         # warping criterion
         self.warp_crit, self.warp_w = define_criterion(losses.get("warping_crit"))
 
@@ -166,6 +174,25 @@ class VSRGAN(L.LightningModule):
             loss_pix_G = self.pix_crit(hr_fake, hr_true)
             loss_G += self.pix_w * loss_pix_G
             to_log["G_pixel_loss"] = loss_pix_G
+
+        # edge loss
+        if self.edge_crit is not None:
+            hr_merge = hr_fake.view(-1, c, gt_h, gt_w)
+            gt_merge = hr_true.view(-1, c, gt_h, gt_w)
+            loss_edge_G = self.edge_crit(
+                self.edge_net(
+                    hr_merge,
+                    self.hparams.losses["edge_crit"].get("threshold1", 5),
+                    self.hparams.losses["edge_crit"].get("threshold2", 5),
+                ),
+                self.edge_net(
+                    gt_merge,
+                    self.hparams.losses["edge_crit"].get("threshold1", 5),
+                    self.hparams.losses["edge_crit"].get("threshold2", 5),
+                ),
+            )
+            loss_G += self.edge_w * loss_edge_G
+            to_log["G_edge_loss"] = loss_edge_G
 
         # warping (warp) loss
         if self.warp_crit is not None:
