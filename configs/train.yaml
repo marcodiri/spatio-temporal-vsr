@@ -48,6 +48,14 @@ model:
       type: CB
       weight: 1
       reduction: mean
+    edge_crit:
+      type: CB
+      weight: 1
+      reduction: mean
+      filter_size: 3
+      std: 3.0
+      threshold1: 5.0
+      threshold2: 5.0
     warping_crit:
       type: CB
       weight: 1
@@ -80,4 +88,4 @@ data:
   tempo_extent: 10
   train_pct: 0.8
   dataset_upscale_factor: *UPSCALE_FACTOR
-  batch_size: 4
+  batch_size: 6

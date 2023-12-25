@@ -39,7 +39,7 @@ state_dict = {
 }
 generator.load_state_dict(state_dict)
 
-lr_paths = sorted(data_utils.get_pics_in_subfolder(args.image, ext=args.ext))
+lr_paths = sorted(data_utils.get_pics_in_subfolder(args.seq, ext=args.ext))
 lr_list = []
 for p in lr_paths:
     lr = data_utils.load_img(p)
